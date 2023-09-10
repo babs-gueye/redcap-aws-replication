@@ -1,0 +1,104 @@
+---
+- name: Install prerequisites
+  apt: name={{ item }} update_cache=yes state=latest force_apt_get=yes
+  loop: [ 'aptitude' ]
+
+#Install and configure Postfix
+- name: Install postfix
+  apt:
+    name: "{{ item }}"
+    state: latest
+    update_cache: yes
+  loop: [postfix, mailutils,libsasl2-modules]
+
+#Enanble and start postfix
+- name: Ensure Postfix is enabled and started
+  service:
+    name: postfix 
+    enabled: yes 
+    state: started
+
+#Configure postfix
+- name: Configure Postfix (main.cf relayhost)
+  command: 
+    cmd: "sudo postconf -e 'relayhost = {{ aws_ses_host }}:{{ aws_smtp_port }}'"
+
+- name: Configure Postfix (main.cf smtp_auth)
+  command: 
+      cmd: "sudo postconf -e 'smtp_sasl_auth_enable = yes'"
+
+- name: Configure Postfix (main.cf smtp_security options)
+  command: 
+    cmd: "sudo postconf -e smtp_sasl_security_options = noanonymous"
+  
+- name: Configure Postfix (main.cf)
+  command: 
+    cmd: "sudo postconf -e smtp_sasl_password_maps = hash:/etc/postfix/sasl_passwd"
+- name: Configure Postfix (main.cf smtp_tls use)
+  command: 
+    cmd: "sudo postconf -e smtp_use_tls = yes"
+- name: Configure Postfix (main.cf smtp_tls_security level)
+  command: 
+    cmd: "sudo postconf -e smtp_tls_security_level = encrypt"
+- name: Configure Postfix (main.cf smtp_tls_start)
+  command: 
+    cmd: "sudo postconf -e smtp_tls_note_starttls_offer = yes"
+
+#Adding entries to /etc/postfix/sasl_passwd
+- name: Setup sasl_passwd file
+  template:
+    src:  "files/sasl_passwd.j2"
+    dest:  "/etc/postfix/{{ postfix_sasl_passwd_file }}"
+    backup: yes
+
+#Create hashmap database file
+- name: Cretae Hashmap database file
+  command:
+    cmd:  "sudo postmap hash:/etc/postfix/sasl_passwd"
+
+- name: Set ownership and permission on files 
+  file:
+    path: "{{ item }}"
+    owner: root
+    mode: 0600
+  loop: ['/etc/postfix/sasl_passwd.db','/etc/postfix/sasl_passwd']
+
+#Tell certicate path to postfix
+- name: Tell certicate path to postfix
+  command:
+    cmd: "sudo postconf -e smtp_tls_CAfile = /etc/ssl/certs/ca-certificates.crt"
+
+#Configure Firewall to allow SMTP and SMTPS
+- name: Enable SMTPS
+  ufw:
+    rule: allow # not required. choices: allow;deny;limit;reject. Add firewall rule
+    port: "{{ aws_smtps_port}}"
+    proto: any # not required. choices: any;tcp;udp;ipv6;esp;ah;gre;igmp. TCP/IP protocol.
+
+- name: Enable SMTP
+  ufw:
+    rule: allow # not required. choices: allow;deny;limit;reject. Add firewall rule
+    port: "{{ aws_smtp_port}}"
+    proto: any # not required. choices: any;tcp;udp;ipv6;esp;ah;gre;igmp. TCP/IP protocol.
+   
+- name: Restart Postfix
+  service:
+    name: postfix # required. Name of the service.
+    state: reloaded # not required. choices: reloaded;restarted;started;stopped. C(started)/C(stopped) are idempotent actions that will not run commands unless necessary. C(restarted) will always bounce the service. C(reloaded) will always reload. B(At least one of state and enabled are required.) Note that reloaded will start the service if it is not already started, even if your chosen init system wouldn't normally.
+
+#Sending e-mail with Ansible
+- name: Sending e-mail 
+  mail:
+    host: "{{ aws_ses_host }}"
+    port: "{{ aws_smtp_port }}"
+    secure: starttls
+    username: "{{ aws_ses_username}}"
+    password: "{{ aws_ses_password }}"
+    subject:  Ansible Postfix successfully installed
+    from: redcap-admin-paris@epicentre-msf.org # not required. The email-address the mail is sent from. May contain address and phrase.
+    to: 
+    - Babacar GUEYE <bcgueye@gmail.com> # not required. The email-address(es) the mail is being sent to. This is a list, which may contain address and phrase portions.
+    - Baba Gueye <babacar.gueye@epicentre-msf.org>
+    body: Hello your SMTP relay host has been successfully provisionned. # not required. The body of the email being sent.
+
+  

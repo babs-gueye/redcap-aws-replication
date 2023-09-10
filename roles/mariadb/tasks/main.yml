@@ -1,0 +1,72 @@
+---
+- name: Install prerequisites
+  apt: name={{ item }} update_cache=yes state=latest force_apt_get=yes
+  loop: [ 'aptitude' ]
+
+#Install Python packages et botocore
+- name: Install python and boto3
+  apt:
+    name: "{{ item }}"
+    state: latest
+    update_cache: yes
+  loop: ['python3-boto3','python3']
+
+ #Install MariaDB server
+- name: Install MariaDB Packages
+  apt: name={{ item }} update_cache=yes state=latest
+  loop: [ 'mariadb-server', 'python3-pymysql' ]
+
+# Start MariaDB Service
+- name: Start MariaDB service
+  service:
+    name: mariadb
+    state: started
+  become: true
+
+# MariaDB Configuration
+- name: Sets the root password
+  mysql_user:
+    name: root
+    password: "{{ mysql_root_password }}"
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+
+- name: Removes all anonymous user accounts
+  mysql_user:
+    name: ''
+    state: absent
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+
+- name: Removes the MySQL test database
+  mysql_db:
+    name: test
+    state: absent
+    login_user: root
+    login_password: "{{ mysql_root_password }}"
+
+#Create REDCap database user
+- name: Create REDCap database user
+  mysql_user:
+    state: present
+    name: "{{ redcap_user }}" # required. Name of the user (role) to add or remove.
+    password: "{{ redcap_password }}" # not required. Set the user's password..
+    login_user:  root
+    login_password:  "{{ mysql_root_password }}"
+    priv: "{{ redcap_db }}.*:ALL"
+    host: "{{ redcap_host }}"
+
+#Decrypt database GPG from the backup server
+- name: Decrypt GPG REDCap database backup
+  shell:
+    cmd:  /usr/bin/bash redcap-restore.sh # not required. The command to run followed by optional arguments.
+    chdir: /opt/scripts/ # not required. Change into this directory before running the command.
+
+#Import REDCap database backup
+- name: Import redcap database
+  mysql_db:
+    name: "{{ redcap_db }}" # required. name of the database to add or remove. I(name=all) May only be provided if I(state) is C(dump) or C(import). List of databases is provided with I(state=dump), I(state=present) and I(state=absent). if name=all Works like --all-databases option for mysqldump (Added in 2.0).
+    state: import # not required. choices: present;absent;dump;import. The database state
+    target: "{{ decrypted }}{{ gzip_file }}" # not required. Location, on the remote host, of the dump file to read from or write to. Uncompressed SQL files (C(.sql)) as well as bzip2 (C(.bz2)), gzip (C(.gz)) and xz (Added in 2.0) compressed files are support
+    login_user:  root
+    login_password: "{{ mysql_root_password }}" # not required. The password used to authenticate with.
+    login_host: localhost # not required. Host running the database.

@@ -1,0 +1,16 @@
+<VirtualHost *:{{ http_port }}>
+        ServerName {{ http_host }}
+        ServerAlias {{ http_host }}
+
+        ServerAdmin {{ server_admin }}
+        DocumentRoot /var/www/html/{{ http_host }}/redcap
+
+        ErrorLog ${APACHE_LOG_DIR}/{{ http_host }}-error.log
+        CustomLog ${APACHE_LOG_DIR}/{{ http_host }}-error-access.log combined
+
+        <Directory "/var/www/html/{{ http_host }}/redcap">
+                Options Indexes FollowSymLinks
+                AllowOverride All
+                Require all granted
+        </Directory>
+</VirtualHost>

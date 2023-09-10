@@ -1,0 +1,145 @@
+---
+- name : Install prerequistes
+  apt:
+    name:  aptitude
+    update_cache: yes
+    state: latest
+
+#Appache Installation
+- name: Install Apache and PHP packages
+  apt:
+    name:  "{{ item }}"
+    state: latest # not required. choices: absent;build-dep;latest;present;fixed. Indicates the desired package state. C(latest) ensures that the latest version is installed. C(build-dep) ensures the package build dependencies are installed. C(fixed) attempt to correct a system with broken dependencies in place.
+    update_cache: yes
+  loop: [ 'apache2', 'php', 'php-mysql', 'libapache2-mod-php', 'php-xml', 'php-dom', 'php-curl', 'php-zip' ]
+
+#Configure PHP settings
+- name: Set upload_max_filesize
+  lineinfile:
+    dest: "{{ php_ini_file }}"
+    state: present
+    regexp: '^upload_max_filesize =.*'
+    line: "upload_max_filesize = {{ upload_max_filesize }}"
+
+- name: Set post_max_size
+  lineinfile:
+    dest: "{{ php_ini_file }}"
+    state: present
+    regexp: '^post_max_size =.*'
+    line: "post_max_size = {{ post_max_size }}"
+
+# Enable mod-rewrite
+- name: Enable Apache2 MOD REWRITE
+  apache2_module:
+    name: rewrite # required. Name of the module to enable/disable as given to C(a2enmod/a2dismod).
+    state: present # not required. choices: present;absent. Desired state of the module.
+
+- name: Install python and boto3
+  apt:
+    name: "{{ item }}"
+    state: latest
+    update_cache: yes
+  loop: ['python3-boto3','python3']
+
+
+#Download the REDCap sources from AWS S3 bucket
+- name: Download REDCap from AWS S3 
+  aws_s3:
+    bucket: "{{ aws_bucket }}" #Bucket name.
+    object: "{{ aws_object_id }}"
+    mode: get # required.Switches the module behaviour between put (upload), get (download), geturl (return download url, Ansible 1.3+), getstr (download object as string (1.3+)), list (list keys, Ansible 2.0+), create (bucket), delete (bucket), and delobj (delete object, Ansible 2.0+).
+    aws_access_key: "{{ aws_access_key }}" # not required. AWS access key id. If not set then the value of the AWS_ACCESS_KEY environment variable is used.
+    aws_secret_key: "{{ aws_secret_key}}" # not required. AWS secret key. If not set then the value of the AWS_SECRET_KEY environment variable is used.
+    dest:  "/var/www/html/{{ aws_object_id }}"
+
+#Install gzip 
+- name: Install GZIP
+  apt:
+    name: "{{ item }}"
+    state: present
+  loop: ['unzip','tar']
+
+- name: Create document root
+  file:
+    path: "/var/www/html/{{ http_host }}"
+    state: directory
+    owner: "{{ app_user }}"
+    mode: '0755'
+
+- name: Unzip REDCap source
+  unarchive:
+    src:  "{{ root_document }}redcap11.1.13.zip"
+    dest:  "{{ root_document }}{{ http_host }}"
+    owner: "{{ app_user }}"
+    group: "{{ user_group }}"
+    mode: 0755
+    remote_src: True # not required. If true, the file is copied from local 'master' to the target machine, otherwise, the plugin will look for src archive at the target machine. This option has been deprecated in favor of C(remote_src). This option is mutually exclusive with C(remote_src).
+
+#Setup Database.php file of REDCap
+- name: Setup Redcap database.php - {{ redcap_host }}
+  replace:
+    path:  "/var/www/html/{{ http_host }}/redcap/database.php" # required. The file to modify. Before Ansible 2.3 this option was only usable as I(dest), I(destfile) and I(name).
+    regexp:  your_mysql_host_name # required. The regular expression to look for in the contents of the file. Uses Python regular expressions; see U(http://docs.python.org/2/library/re.html). Uses MULTILINE mode, which means C(^) and C($) match the beginning and end of the file, as well as the beginning and end respectively of I(each line) of the file. Does not use DOTALL, which means the C(.) special character matches any character I(except newlines). A common mistake is to assume that a negated character set like C([^#]) will also not match newlines. In order to exclude newlines, they must be added to the set like C([^#\n]). Note that, as of Ansible 2.0, short form tasks should have any escape sequences backslash-escaped in order to prevent them being parsed as string literal escapes. See the examples.
+    replace:  "{{ redcap_host }}" # not required. The string to replace regexp matches. May contain backreferences that will get expanded with the regexp capture groups if the regexp matches. If not set, matches are removed entirely. Backreferences can be used ambiguously like C(\1), or explicitly like C(\g<1>).
+    
+- name: Setup Redcap database.php - {{ redcap_db }}
+  replace:
+    path:  "/var/www/html/{{ http_host }}/redcap/database.php" # required. The file to modify. Before Ansible 2.3 this option was only usable as I(dest), I(destfile) and I(name).
+    regexp:  your_mysql_db_name # required. The regular expression to look for in the contents of the file. Uses Python regular expressions; see U(http://docs.python.org/2/library/re.html). Uses MULTILINE mode, which means C(^) and C($) match the beginning and end of the file, as well as the beginning and end respectively of I(each line) of the file. Does not use DOTALL, which means the C(.) special character matches any character I(except newlines). A common mistake is to assume that a negated character set like C([^#]) will also not match newlines. In order to exclude newlines, they must be added to the set like C([^#\n]). Note that, as of Ansible 2.0, short form tasks should have any escape sequences backslash-escaped in order to prevent them being parsed as string literal escapes. See the examples.
+    replace:  "{{ redcap_db }}" # not required. The string to replace regexp matches. May contain backreferences that will get expanded with the regexp capture groups if the regexp matches. If not set, matches are removed entirely. Backreferences can be used ambiguously like C(\1), or explicitly like C(\g<1>).
+
+- name: Setup Redcap database.php - {{ redcap_user }}
+  replace:
+    path:  "/var/www/html/{{ http_host }}/redcap/database.php" # required. The file to modify. Before Ansible 2.3 this option was only usable as I(dest), I(destfile) and I(name).
+    regexp:  your_mysql_db_username # required. The regular expression to look for in the contents of the file. Uses Python regular expressions; see U(http://docs.python.org/2/library/re.html). Uses MULTILINE mode, which means C(^) and C($) match the beginning and end of the file, as well as the beginning and end respectively of I(each line) of the file. Does not use DOTALL, which means the C(.) special character matches any character I(except newlines). A common mistake is to assume that a negated character set like C([^#]) will also not match newlines. In order to exclude newlines, they must be added to the set like C([^#\n]). Note that, as of Ansible 2.0, short form tasks should have any escape sequences backslash-escaped in order to prevent them being parsed as string literal escapes. See the examples.
+    replace:  "{{ redcap_user }}" # not required. The string to replace regexp matches. May contain backreferences that will get expanded with the regexp capture groups if the regexp matches. If not set, matches are removed entirely. Backreferences can be used ambiguously like C(\1), or explicitly like C(\g<1>).
+
+- name: Setup Redcap database.php - {{ redcap_password }}
+  replace:
+    path:  "/var/www/html/{{ http_host }}/redcap/database.php" # required. The file to modify. Before Ansible 2.3 this option was only usable as I(dest), I(destfile) and I(name).
+    regexp:  your_mysql_db_password # required. The regular expression to look for in the contents of the file. Uses Python regular expressions; see U(http://docs.python.org/2/library/re.html). Uses MULTILINE mode, which means C(^) and C($) match the beginning and end of the file, as well as the beginning and end respectively of I(each line) of the file. Does not use DOTALL, which means the C(.) special character matches any character I(except newlines). A common mistake is to assume that a negated character set like C([^#]) will also not match newlines. In order to exclude newlines, they must be added to the set like C([^#\n]). Note that, as of Ansible 2.0, short form tasks should have any escape sequences backslash-escaped in order to prevent them being parsed as string literal escapes. See the examples.
+    replace:  "{{ redcap_password }}" # not required. The string to replace regexp matches. May contain backreferences that will get expanded with the regex
+
+# Setup Virtualhost
+- name: Setup virtualhost
+  template:
+    src:  "files/redcap_vhost.conf.j2"
+    dest:  "/etc/apache2/sites-available/{{ http_conf }}"
+    
+- name: Enable new site
+  shell:
+    cmd:  /usr/sbin/a2ensite {{ http_conf }}
+
+- name: Disable default Apache site
+  shell: /usr/sbin/a2dissite 000-default.conf
+  when: disable_default
+  notify: Reload Apache
+
+# UFW Configuration
+- name: "UFW - Allow HTTP on port {{ http_port }}"
+  ufw:
+    rule: allow
+    port: "{{ http_port }}"
+    proto: tcp
+
+- name: "UFW - Allow HTTPS on port {{ https_port }}"
+  ufw:
+    rule: allow
+    port: "{{ https_port }}"
+    proto: tcp
+
+  # PHP Info Page
+- name: Sets Up PHP Info Page
+  template:
+    src: "files/info.php.j2"
+    dest: "/var/www/html/{{ http_host }}/info.php"
+
+- name: Reload Apache
+  service:
+    name: apache2
+    state: reloaded
+
+- name: Restart Apache
+  service:
+    name: apache2
+    state: restarted

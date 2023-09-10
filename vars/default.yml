@@ -1,0 +1,46 @@
+mysql_root_password: "P@ssw0rd"
+app_user: "www-data"
+user_group: "www-data"
+http_host: "redcap-mbarara.epicentre-msf.org"
+http_conf: "redcap-mbarara.epicentre-msf.org.conf"
+http_port: "80"
+disable_default: true
+https_port: "443"
+server_admin: "epi-admin@epicentre-msf.org"
+root_document: "/var/www/html/"
+
+#REDCap Database information 
+redcap_db: "redcap"
+redcap_user: "redcap_user"
+redcap_host: "192.168.0.33"
+redcap_password: "3pic3nTRE4Prod@!!#"
+
+
+#AWS bucket informations and credentials
+aws_bucket: "redcap-epicentre-msf"
+aws_bucket_sql: "staging-redacp-epicentre-msf"
+aws_access_key: "AKIAWAUDKFLQDKDBRYB5"
+aws_secret_key: "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"
+aws_object_id: "redcap11.1.13.zip"
+aws_backup_object_id: "redcap_db_05-12-2022__12-06.sql.gz.gpg"
+aws_sql_object_id: "redcap-staging.sql"
+
+#Diretcory backups informations to be imported 
+backup_dir: "/opt/import-database/"
+decrypted_dir: "/opt/decrypted/"
+gzip_file: "redcap-db.gz"
+
+#Let's encrypt variables
+certbot_site_names: "redcap-mbarara.epicentre-msf.org"
+certbot_package: "python3-certbot-apache"
+certbot_plugin: "apache"
+certbot_mail_address: bcgueye@gmail.com
+
+#Postfix variables
+aws_ses_host: "[email-smtp.eu-west-3.amazonaws.com]"
+aws_ses_username: "AKIAWAUDKFLQJCMGJLFY"
+aws_ses_password: "BDXZ265oiKpqs4sflhEA86GRq/bFfiIjMbwotaknGPKM"
+aws_smtps_port: "587"
+aws_smtp_port: "25"
+postfix_sasl_passwd_file: "sasl_passwd"
+
